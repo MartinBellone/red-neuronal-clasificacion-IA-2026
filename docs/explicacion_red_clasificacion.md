@@ -70,8 +70,11 @@ La entrada final queda formada por:
 512 valores originales
 + 256 valores del histograma
 + 4 estadisticas
-= 772 caracteristicas
++ 2048 valores de histogramas locales
+= 2820 caracteristicas
 ```
+
+Los histogramas locales se obtienen dividiendo cada muestra en 8 bloques de 64 bytes. Para cada bloque calculamos un histograma de 256 posiciones. Esto conserva informacion sobre la posicion de los patrones, que se pierde cuando usamos solamente un histograma global.
 
 Estas features no cambian el tipo de red: seguimos usando una red feedforward totalmente conectada.
 
@@ -80,7 +83,7 @@ Estas features no cambian el tipo de red: seguimos usando una red feedforward to
 La red usa capas `Dense`, por lo que es una red feedforward. No usamos redes recurrentes ni convolucionales.
 
 ```python
-keras.Input(shape=(772,)),
+keras.Input(shape=(2820,)),
 Dense(256, activation='relu'),
 BatchNormalization(),
 Dropout(0.2),
@@ -92,7 +95,7 @@ Dense(5, activation='softmax')
 
 ### Entrada
 
-`keras.Input(shape=(772,))` indica que cada muestra tiene 772 caracteristicas.
+`keras.Input(shape=(2820,))` indica que cada muestra tiene 2820 caracteristicas.
 
 ### Capas densas
 
@@ -183,7 +186,7 @@ Medimos el resultado en tres lugares:
 2. `testX`: 20% separado desde `dataset.csv` para validacion local.
 3. `test_publico.csv`: conjunto etiquetado entregado por la catedra para una validacion adicional.
 
-La diferencia entre entrenamiento y test permite detectar sobreajuste. La configuracion estable obtuvo aproximadamente 63% en train y 59% en el conjunto publico despues de agregar las features estadisticas.
+La version con features globales obtuvo aproximadamente 63% en train y 59% en el conjunto publico. Luego agregamos histogramas por bloques y el resultado subio aproximadamente a 72% en train y 67% en `test_publico`. La diferencia de 5 puntos porcentuales indica una generalizacion razonable.
 
 ## 11. Matriz de confusion
 
@@ -194,7 +197,7 @@ La matriz de confusion muestra las predicciones por clase:
 - La diagonal contiene los aciertos.
 - Fuera de la diagonal aparecen las confusiones.
 
-La mayor dificultad aparece entre `jpg`, `png` y `webp`. Esto indica que esas clases comparten patrones estadisticos en los fragmentos de 512 bytes.
+La mayor dificultad aparece entre `jpg`, `png` y `webp`. Esto indica que esas clases comparten patrones estadisticos en los fragmentos de 512 bytes. En el conjunto base la separacion de `jpg` mejoro, aunque en `test_publico` las matrices siguen siendo mas difusas porque contiene muestras diferentes y menos numerosas.
 
 La matriz se calcula con `ConfusionMatrixDisplay` y se puede normalizar por fila para comparar porcentajes entre clases.
 
@@ -226,21 +229,8 @@ pd.DataFrame({
 
 El archivo debe tener una sola columna llamada `y_pred` y 500 filas.
 
-## 13. Errores y decisiones importantes
-
-Durante el desarrollo aparecieron varios puntos importantes:
-
-- El dataset no era MNIST, por lo que habia que dejar de usar la carga de imagenes `28x28`.
-- Las etiquetas tenian espacios, lo que provocaba `KeyError`; se soluciono con `strip()`.
-- El conjunto de validacion tiene 800 filas, por lo que indices como `5626` no son validos.
-- Las muestras son vectores de 512 bytes, no imagenes 2D; por eso se cambio la visualizacion a un grafico de linea.
-- `test_publico.csv` tiene etiquetas y sirve para validar. El conjunto final sin etiquetas es `clasificacion_test_features.csv`.
-- La funcion de matriz de confusion original usaba `plot_confusion_matrix`, que no estaba definida; se reemplazo por `ConfusionMatrixDisplay`.
-- Las funciones de prediccion empezaban a recorrer desde el indice 1 y omitian la primera muestra; se corrigieron para recorrer desde 0.
-- Se mantuvo una arquitectura feedforward con capas `Dense`, de acuerdo con la consigna.
-
-## 14. Resumen para la exposicion
+## 13. Resumen para la exposicion
 
 Una forma breve de explicarlo oralmente es:
 
-> Primero cargue el dataset separando los 512 bytes de la etiqueta. Converti las etiquetas a valores numericos y use one-hot encoding. Dividi los datos en entrenamiento y validacion de forma estratificada y normalice los bytes al rango 0-1. Como la red confundia principalmente jpg, png y webp, agregue histogramas y estadisticas de los bytes, llevando la entrada de 512 a 772 caracteristicas. Luego use una red feedforward con capas densas, ReLU, BatchNormalization, Dropout y una salida softmax de cinco clases. Para controlar el entrenamiento use EarlyStopping y una reduccion automatica del learning rate. Finalmente analice el resultado con accuracy, test_publico y matrices de confusion, y genere el CSV final con las etiquetas textuales.
+> Primero cargue el dataset separando los 512 bytes de la etiqueta. Converti las etiquetas a valores numericos y use one-hot encoding. Dividi los datos en entrenamiento y validacion de forma estratificada y normalice los bytes al rango 0-1. Como la red confundia principalmente jpg, png y webp, agregue histogramas globales, estadisticas y luego histogramas locales dividiendo cada muestra en 8 bloques. De esa forma la entrada paso de 512 a 2820 caracteristicas. Luego use una red feedforward con capas densas, ReLU, BatchNormalization, Dropout y una salida softmax de cinco clases. Para controlar el entrenamiento use EarlyStopping y una reduccion automatica del learning rate. El resultado mejoro hasta aproximadamente 72% en train y 67% en test_publico. Finalmente analice el resultado con accuracy, matrices de confusion y genere el CSV final con las etiquetas textuales.
