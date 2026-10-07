@@ -1,5 +1,110 @@
 # Explicacion oral de la red neuronal de clasificacion
 
+## Linea de tiempo del proyecto
+
+### 1. Punto de partida: entender el problema
+
+La competencia pide reconocer el formato de una imagen a partir de un fragmento de 512 bytes. Las clases son `gif`, `jpg`, `png`, `qoi` y `webp`.
+
+El dataset tiene 4000 filas balanceadas. Cada fila contiene 512 valores y una etiqueta textual en la ultima columna.
+
+### 2. Primera carga del dataset
+
+Inicialmente la notebook estaba preparada para MNIST, con imagenes de 28x28 y etiquetas numericas. Eso no correspondia con este problema, asi que reemplazamos la carga por una lectura de `dataset.csv`.
+
+Separamos los 512 valores de la etiqueta y convertimos las clases usando un orden fijo:
+
+```python
+{'gif': 0, 'jpg': 1, 'png': 2, 'qoi': 3, 'webp': 4}
+```
+
+Tambien agregamos `strip()` porque las etiquetas del archivo podian contener espacios.
+
+### 3. Preprocesamiento inicial
+
+Dividimos el dataset en entrenamiento y validacion usando `train_test_split` con `stratify`, y normalizamos los bytes dividiendo por 255.
+
+La primera representacion usaba solamente los 512 valores originales.
+
+### 4. Primera red feedforward
+
+Construimos una red totalmente conectada con capas `Dense`, ReLU y una salida softmax de cinco clases. Probamos distintas cantidades de neuronas, `Dropout`, cantidad de epocas y learning rate.
+
+La precision de entrenamiento era mayor que la precision sobre datos externos, lo que mostro que habia sobreajuste.
+
+### 5. Diagnostico con matrices de confusion
+
+La matriz mostro que `gif` y `qoi` eran relativamente faciles de reconocer, pero habia confusiones entre `jpg`, `png` y `webp`.
+
+A partir de ese diagnostico decidimos que el problema no era solamente la cantidad de capas: a la red le faltaba una representacion mas rica de los bytes.
+
+### 6. Primer enriquecimiento de features
+
+Sin agregar informacion externa ni usar las etiquetas para construir las entradas, calculamos a partir de los mismos 512 bytes:
+
+- Histograma global de los valores 0-255.
+- Media, desvio estandar, minimo y maximo.
+- Histogramas locales dividiendo la muestra en 8 bloques de 64 bytes.
+
+La entrada paso de 512 a 2820 caracteristicas. La red seguia siendo feedforward, porque solo usaba capas `Dense`.
+
+### 7. Control del entrenamiento
+
+Agregamos dos callbacks:
+
+- `EarlyStopping`, monitoreando `val_accuracy`, para recuperar la mejor epoca.
+- `ReduceLROnPlateau`, monitoreando `val_loss`, para reducir el learning rate cuando el aprendizaje se estanca.
+
+Tambien incorporamos `BatchNormalization` y `Dropout` para estabilizar el entrenamiento y reducir el sobreajuste.
+
+### 8. Comparacion de arquitecturas
+
+Probamos una red mas grande, de `256 -> 128`, y una mas pequeña, de `128 -> 64`.
+
+La red grande aprendia mucho el dataset de entrenamiento, pero no siempre generalizaba mejor. La red de `128 -> 64` mostro un mejor equilibrio entre entrenamiento y datos externos.
+
+### 9. Ultima mejora de features
+
+Como `png` y `webp` seguian confundiendose, agregamos un histograma de transiciones entre bytes consecutivos. Para limitar la cantidad de combinaciones, agrupamos los valores de byte en 16 rangos.
+
+Esta mejora agrego 256 caracteristicas:
+
+```text
+2820 features anteriores
++ 256 transiciones cuantizadas
+= 3076 caracteristicas
+```
+
+La arquitectura final quedo:
+
+```text
+3076 -> 128 -> 64 -> 5
+```
+
+### 10. Resultado actual
+
+La ultima version alcanzo aproximadamente:
+
+```text
+Train:         77.24%
+Test publico:  70%
+Test final:    68%
+```
+
+La matriz final muestra que `gif` y `qoi` se reconocen muy bien. La principal dificultad continua siendo la confusion entre `png` y `webp`.
+
+### 11. Entrega final
+
+Para la entrega cargamos `clasificacion_test_features.csv`, aplicamos exactamente el mismo preprocesamiento y generamos las predicciones textuales:
+
+```python
+clases = ['gif', 'jpg', 'png', 'qoi', 'webp']
+probas = modelo_entrenado.predict(test_features)
+predicciones = [clases[i] for i in np.argmax(probas, axis=1)]
+```
+
+Finalmente guardamos un CSV con una sola columna, `y_pred`, y 500 filas.
+
 ## 1. Objetivo
 
 El objetivo es clasificar un fragmento de 512 bytes segun el formato de imagen al que pertenece. Las clases son:
