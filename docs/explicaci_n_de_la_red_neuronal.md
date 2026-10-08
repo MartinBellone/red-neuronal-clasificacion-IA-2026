@@ -62,3 +62,5 @@ Una forma breve de explicarlo oralmente es:
 > Usamos una arquitectura `3078 -> 256 -> 128 -> 5` usando la activación `Swish`, BatchNormalization y Dropout. Para estabilizar el aprendizaje complejo, utilizamos el optimizador `AdamW` y aplicamos `Label Smoothing`. Además, introdujimos pesos de clase que penalizan el triple los errores en PNG y WEBP.
 > 
 > Finalmente, para la evaluación usamos un Mega-Ensamble K-Fold de 10 divisiones. Entrenamos 10 modelos distintos y los hicimos votar promediando sus probabilidades de predicción sobre el set de test. Esto neutralizó los sesgos individuales y nos disparó de un estancamiento del 68% hasta un **74.6% de precisión en el test final ciego**."
+
+
