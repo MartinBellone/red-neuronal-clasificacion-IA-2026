@@ -30,5 +30,9 @@ A continuación se detalla la línea de tiempo del desarrollo y las decisiones a
 * **Decisión Final:** Se descartaron las convoluciones y se retornó a la **Red Densa de la Fase 1**.
 * **Conclusión:** El proceso iterativo demostró que para este dominio particular, la ingeniería de atributos (el preprocesamiento matemático manual) es inmensamente superior a la extracción automática de características. Exponer la estructura subyacente mediante entropía y frecuencias resultó ser la clave del éxito.
 
+Fase 6: Optimización de Datos (La Arquitectura Definitiva)
+Enfoque: Solucionar la "maldición de la dimensionalidad". Ingresar $3078$ variables para clasificar $3600$ archivos generaba demasiado ruido estadístico.Solución:Poda de Características: Se utilizó un RandomForestClassifier para calcular la importancia de las $3078$ variables matemáticas, filtrando y conservando únicamente el Top 800.Estandarización: Se aplicó StandardScaler sobre las $800$ características restantes para homogeneizar las varianzas, permitiendo que el optimizador AdamW descendiera por el gradiente de forma mucho más limpia.
+Resultado: Se logró un pico histórico del 88.20% de exactitud en el test público ciego. La red Densa, ahora alimentada con datos limpios y enfocados, logró un 91% de acierto en la clase JPG y eliminó casi por completo los errores cruzados entre formatos no relacionados.
+
 ---
 **Arquitectura Final Entregada:** Modelo Secuencial (Dense), entrada de $3078$ características, optimizado con hiperparámetros de Keras Tuner.
