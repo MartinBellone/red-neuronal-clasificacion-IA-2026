@@ -1,6 +1,6 @@
 # Explicación de la Red Neuronal para Clasificación de Formatos
 
-A lo largo del proyecto, la arquitectura del modelo atravesó distintas etapas de evolución. El objetivo siempre fue maximizar la precisión en la identificación de formatos (PNG, JPG, GIF, WEBP, QOI) a partir de sus primeros $512$ bytes crudos. 
+A lo largo del proyecto, la arquitectura del modelo atravesó distintas etapas de evolución. El objetivo siempre fue maximizar la precisión en la identificación de formatos (PNG, JPG, GIF, WEBP, QOI) a partir de un fragmento de $512$ bytes crudos (que no necesariamente es el comienzo del archivo). 
 
 A continuación se detalla la línea de tiempo del desarrollo y las decisiones arquitectónicas tomadas en cada fase:
 
@@ -56,5 +56,42 @@ Red Convolucional 1D (CNN): Intento de detectar firmas secuenciales exactas dire
 
 Ensamble Heterogéneo (Soft Voting): Combinación estratégica de tres modelos de familias distintas (Red Neuronal Minimalista, XGBoost y SVC) entrenados sobre las 800 variables óptimas. Resolvió gran parte de la confusión entre PNG y WEBP, logrando 93.00% local y disparando el puntaje oficial al 94.80% en el Leaderboard, asegurando el cuarto puesto.
 
+### Fase 10: Análisis de los bytes y features a nivel de bits (Entrega 9)
+**Enfoque:** En lugar de seguir probando arquitecturas, se analizó directamente el contenido de los fragmentos para entender qué distingue a cada formato. Este análisis dio tres hallazgos:
+
+* **Casi ningún fragmento empieza en el header:** solo ~1% de las muestras de cada clase arranca con su firma (magic number). Por eso el feature `header_32` (los primeros 32 bytes) era ruido posicional y se eliminó. Esto también explica por qué falló el aumento de datos de la Fase 7: se generaron muestras tomando los primeros 512 bytes de cada archivo, es decir, justo el header, que en los datos reales casi no aparece.
+* **JPG y GIF tienen patrones propios del formato:**
+    * **JPG:** en los datos comprimidos, todo byte `0xFF` va seguido de `0x00` (*byte stuffing*). Esto ocurre en el 93% de los casos en JPG y en ~0% en el resto de las clases.
+    * **GIF:** los datos LZW se guardan en sub-bloques de 255 bytes, así que aparece un `0xFF` cada 256 bytes en el 98% de los GIF.
+
+    Se agregaron como features explícitas, junto con la presencia de las cadenas `IDAT`/`IEND` (PNG) y `VP8` (WEBP). Por sí solas no mejoraron el resultado (92.20%), porque el modelo ya resolvía bien JPG y GIF.
+* **PNG y WEBP parecen ruido a nivel de bytes:** el 87% de los PNG y el 98% de los WEBP tienen un histograma de bytes indistinguible del de bytes aleatorios. Ahí estaba casi todo el error del modelo.
+
+**Solución: n-gramas de bits leídos LSB-first.** El compresor de PNG (Deflate) escribe sus códigos Huffman bit a bit, empezando por el bit **menos significativo** de cada byte y sin respetar los límites entre bytes. Por eso, mirando bytes enteros no se ve ninguna estructura. Se reinterpretó cada fragmento como un flujo de $4096$ bits en ese orden, y se calculó el histograma de todas las ventanas de 12 bits consecutivos ($2^{12} = 4096$ features nuevas). Así quedan expuestos los patrones de los códigos Huffman de PNG, mientras que el codificador aritmético de WEBP (VP8) sigue pareciendo aleatorio.
+
+Comparación rápida con un clasificador ExtraTrees separando solo PNG de WEBP:
+
+| Features | Accuracy PNG vs WEBP |
+|---|---|
+| Histograma de bytes | 67.6% |
+| N-gramas de 8 bits (MSB-first) | 83.3% |
+| N-gramas de 8 bits (LSB-first) | 89.2% |
+| N-gramas de 12 bits (LSB-first) | 92.8% |
+
+Que el orden LSB-first funcione mejor que el MSB-first confirma que la señal viene de la forma en que Deflate empaqueta los bits.
+
+**Pipeline final:** `enriquecer_features` sin `header_32` + n-gramas LSB de 12 bits + 8 features de formato ($7182$ en total). La poda con Random Forest conserva el Top 800, y las 8 features de formato se fuerzan a entrar siempre ($804$ en total). Después se aplica StandardScaler y el mismo ensamble de la Fase 9 (Red Minimalista + XGBoost + SVC con soft voting, 10 folds). Para la entrega final también se sumaron al entrenamiento las 500 muestras etiquetadas de `test_publico.csv` (4500 en total).
+
+**Resultado:**
+
+| | Test público (local) | Leaderboard |
+|---|---|---|
+| Entrega 8 | 93.00% | 94.80% |
+| **Entrega 9** | **97.40%** (F1 macro 97.47%) | **96.80%** (F1 macro 0.9668) |
+
+La validación cruzada sobre las 4500 muestras también dio 97.40%, y el leaderboard quedó a menos de un punto del valor local, lo que confirma que no hay sobreajuste.
+
+**Conclusión:** el salto no vino de la arquitectura sino de entender cómo está codificado cada formato. Una vez que la información correcta está en las features, el mismo ensamble que antes llegaba a 93% pasa a 97%.
+
 ---
-**Arquitectura Final Entregada:** Modelo Secuencial (Dense), entrada de $3078$ características, optimizado con hiperparámetros de Keras Tuner.
+**Arquitectura Final Entregada (Entrega 9):** Ensamble heterogéneo con soft voting (Red Neuronal Densa Minimalista 64-32 con swish + XGBoost + SVC), entrenado con K-Fold de 10 particiones sobre $804$ características: features estadísticas, n-gramas de bits LSB-first y features de formato.
