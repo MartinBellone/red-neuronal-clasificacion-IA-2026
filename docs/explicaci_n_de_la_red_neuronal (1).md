@@ -91,6 +91,11 @@ Que el orden LSB-first funcione mejor que el MSB-first confirma que la señal vi
 
 La validación cruzada sobre las 4500 muestras también dio 97.40%, y el leaderboard quedó a menos de un punto del valor local, lo que confirma que no hay sobreajuste.
 
+**Variantes probadas después de la entrega 9 (sin mejora):**
+* **Tamaño de ventana:** con ExtraTrees como referencia, 10 bits dio 89.2%, 12 bits 94.0%, 14 bits 94.4% y 16 bits 93.0%. Combinar 10+12+14 dio 93.4%. 12 y 14 quedan empatados dentro del ruido, así que se mantuvo 12.
+* **N-gramas MSB-first de 12 bits (además de los LSB):** JPEG empaqueta sus códigos Huffman empezando por el bit más significativo, y con estas features desaparecieron todos los errores de JPG. Pero en el pipeline completo el resultado fue 97.00% contra 97.40% (2 muestras de diferencia, ruido), porque JPG ya casi no fallaba.
+* De los 15 errores que quedan en test público, 13 son PNG ↔ WEBP: fragmentos que ni los patrones de bits logran distinguir. Se consideró que el modelo está cerca de su techo y no se gastaron más entregas.
+
 **Conclusión:** el salto no vino de la arquitectura sino de entender cómo está codificado cada formato. Una vez que la información correcta está en las features, el mismo ensamble que antes llegaba a 93% pasa a 97%.
 
 ---
