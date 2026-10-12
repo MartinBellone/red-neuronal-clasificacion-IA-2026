@@ -98,5 +98,11 @@ La validación cruzada sobre las 4500 muestras también dio 97.40%, y el leaderb
 
 **Conclusión:** el salto no vino de la arquitectura sino de entender cómo está codificado cada formato. Una vez que la información correcta está en las features, el mismo ensamble que antes llegaba a 93% pasa a 97%.
 
+### Fase 11: Experimentos Avanzados Post-Entrega 9 (Kolmogorov y Stacking)
+Enfoque de Optimización Fina: Con el objetivo de rasguñar los últimos errores residuales (principalmente en la frontera de confusión entre PNG y WEBP), se evaluó la inyección de características de Complejidad de Kolmogorov (ratios de compresión mediante zlib y bz2), bajo la hipótesis de que la codificación aritmética de WEBP genera una entropía y sobrecarga de compresión sutilmente distinta a la de los bloques Huffman de PNG. Adicionalmente, se exploró un esquema de Stacking utilizando una Regresión Logística como meta-modelo sobre las probabilidades Out-Of-Fold (OOF) del ensamble principal.
+
+Resultados y Conclusión: La incorporación aislada de los ratios de compresión empujó levemente la métrica de validación cruzada local hasta un pico de 97.42% de exactitud y F1 macro; sin embargo, al aplicarlo en la subida oficial se tradujo en un 96.40% en el Leaderboard, evidenciando un sutil sobreajuste a los datos públicos. Por su parte, el meta-modelo de Stacking estabilizó el accuracy en 97.31%, demostrando estadísticamente que la estrategia de Votación Suave (Soft Voting) simple sobre las 804 variables óptimas (n-gramas LSB-first + features de formato) representa el límite analítico y la frontera de decisión óptima para este dominio, sin beneficio de complejidad adicional.
+
+
 ---
 **Arquitectura Final Entregada (Entrega 9):** Ensamble heterogéneo con soft voting (Red Neuronal Densa Minimalista 64-32 con swish + XGBoost + SVC), entrenado con K-Fold de 10 particiones sobre $804$ características: features estadísticas, n-gramas de bits LSB-first y features de formato.
